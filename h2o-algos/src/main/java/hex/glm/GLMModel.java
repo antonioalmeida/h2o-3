@@ -652,7 +652,7 @@ public class GLMModel extends Model<GLMModel,GLMModel.GLMParameters,GLMModel.GLM
     public double dev = Double.NaN;
   }
   public static class GLMWeightsFun extends Iced {
-    final Family _family;
+    final public Family _family;
     final Link _link;
     final double _var_power;
     final double _link_power;

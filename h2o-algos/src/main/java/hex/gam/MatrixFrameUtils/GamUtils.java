@@ -130,22 +130,22 @@ public class GamUtils {
 
   public static void copyGLMCoeffs2GAMCoeffs(GAMModel model, GLMModel glm, DataInfo dinfo, GLMParameters.Family family,
                                              int gamNumStart, boolean standardized, int nclass) {
-    int numCoeffPerClass = model._output._coefficient_names.length;
+    int numCoeffPerClass = model._output._coefficient_names_no_centering.length;
     if (family.equals(GLMParameters.Family.multinomial) || family.equals(GLMParameters.Family.ordinal)) {
       double[][] model_beta_multinomial = glm._output.get_global_beta_multinomial();
       double[][] standardized_model_beta_multinomial = glm._output.getNormBetaMultinomial();
-      model._output._model_beta_multinomial = new double[nclass][];
+      model._output._model_beta_multinomial_no_centering = new double[nclass][];
       model._output._standardized_model_beta_multinomial = new double[nclass][];
       for (int classInd = 0; classInd < nclass; classInd++) {
-        model._output._model_beta_multinomial[classInd] = convertCenterBeta2Beta(model._output._zTranspose,
+        model._output._model_beta_multinomial_no_centering[classInd] = convertCenterBeta2Beta(model._output._zTranspose,
                 gamNumStart, model_beta_multinomial[classInd], numCoeffPerClass);
         model._output._standardized_model_beta_multinomial[classInd] = convertCenterBeta2Beta(model._output._zTranspose,
                 gamNumStart, standardized_model_beta_multinomial[classInd], numCoeffPerClass);
       }
     } else {  // other families
-      model._output._model_beta = convertCenterBeta2Beta(model._output._zTranspose, gamNumStart,
+      model._output._model_beta_no_centering = convertCenterBeta2Beta(model._output._zTranspose, gamNumStart,
               glm.beta(), numCoeffPerClass);
-      model._output._standardized_model_beta = convertCenterBeta2Beta(model._output._zTranspose, gamNumStart,
+      model._output._standardized_model_beta_no_centering = convertCenterBeta2Beta(model._output._zTranspose, gamNumStart,
               glm._output.getNormBeta(), numCoeffPerClass);
     }
   }
@@ -183,25 +183,20 @@ public class GamUtils {
   }
 
   public static int copyGLMCoeffNames2GAMCoeffNames(GAMModel model, GLMModel glm, DataInfo dinfo) {
-    if (model._centerGAM) {
-      int numGamCols = model._gamColNames.length;
+      int numGamCols = model._gamColNamesNoCentering.length;
       String[] glmColNames = glm._output.coefficientNames();
       int lastGLMCoeffIndex = glmColNames.length-1;
-      int lastGAMCoeffIndex = dinfo.fullN();
-      int gamNumColStart = colIndexFromColNames(glmColNames, model._gamColNamesCenter[0][0]);
+      int lastGAMCoeffIndex = lastGLMCoeffIndex+numGamCols;
+      int gamNumColStart = colIndexFromColNames(glmColNames, model._gamColNames[0][0]);
       int gamLengthCopied = gamNumColStart;
-      System.arraycopy(glmColNames, 0, model._output._coefficient_names, 0, gamLengthCopied); // copy coeff names before gam columns
+      System.arraycopy(glmColNames, 0, model._output._coefficient_names_no_centering, 0, gamLengthCopied); // copy coeff names before gam columns
       for (int gamColInd = 0; gamColInd < numGamCols; gamColInd++) {
-        System.arraycopy(model._gamColNames[gamColInd], 0, model._output._coefficient_names, gamLengthCopied,
-                model._gamColNames[gamColInd].length);
-        gamLengthCopied += model._gamColNames[gamColInd].length;
+        System.arraycopy(model._gamColNamesNoCentering[gamColInd], 0, model._output._coefficient_names_no_centering, gamLengthCopied,
+                model._gamColNamesNoCentering[gamColInd].length);
+        gamLengthCopied += model._gamColNamesNoCentering[gamColInd].length;
       }
-      model._output._coefficient_names[lastGAMCoeffIndex] = new String(glmColNames[lastGLMCoeffIndex]);
+      model._output._coefficient_names_no_centering[lastGAMCoeffIndex] = new String(glmColNames[lastGLMCoeffIndex]);
       return gamNumColStart;
-    } else
-      System.arraycopy(glm._output.coefficientNames(), 0, model._output._coefficient_names, 0,
-              dinfo.fullN()+1);
-    return 0;
   }
   public static void addGAM2Train(GAMParameters parms, Frame orig, double[][][] zTranspose,
                                   double[][][] penalty_mat, String[][] gamColnames, String[][] gamColnamesCenter,
@@ -243,7 +238,7 @@ public class GamUtils {
               Frame oneAugmentedColumnCenter = genOneGamCol.outputFrame(Key.make(), newColNames,
                       null);
               oneAugmentedColumnCenter = genOneGamCol.centralizeFrame(oneAugmentedColumnCenter,
-                      predictVec.name(0) + "_" + splineType + "_decenter_", parms);
+                      predictVec.name(0) + "_" + splineType + "_center_", parms);
               GamUtils.copy2DArray(genOneGamCol._ZTransp, zTranspose[frameIndex]); // copy transpose(Z)
               double[][] transformedPenalty = ArrayUtils.multArrArr(ArrayUtils.multArrArr(genOneGamCol._ZTransp,
                       genOneGamCol._penaltyMat), ArrayUtils.transpose(genOneGamCol._ZTransp));  // transform penalty as zt*S*z
@@ -272,10 +267,6 @@ public class GamUtils {
       responseVec = _train.remove(response_column);
     for (int frameInd = 0; frameInd < numGamFrame; frameInd++) {  // append the augmented columns to _train
       Frame gamFrame = gamFramesKey[frameInd].get();
-/*      if (centerGAM) {
-        gamColnamesDecenter[frameInd] = new String[gamFrame.names().length];
-        System.arraycopy(gamFrame.names(), 0, gamColnamesDecenter[frameInd], 0, gamFrame.names().length);
-      }*/
       _train.add(gamFrame.names(), gamFrame.removeAll());
       Scope.track(gamFrame);
     }

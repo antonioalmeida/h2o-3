@@ -67,13 +67,9 @@ public class GamTestPiping extends TestUtil {
       TestUtil.checkDoubleArrays(model._output._binvD[0], rBinvD, 1e-6); // compare binvD generation
       TestUtil.checkDoubleArrays(model._output._penaltyMatrices[0], rS, 1e-6);  // compare penalty terms
       TestUtil.checkDoubleArrays(model._output._penaltyMatrices_center[0], rScenter, 1e-6);
-
-      Frame transformedData = ((Frame) DKV.getGet(model._output._gamTransformedTrain));  // compare model matrix
-      Scope.track(transformedData);
-      Scope.track(transformedData.remove("C11"));
+      
       Frame rTransformedData = parse_test_file("smalldata/gam_test/multinomial_10_classes_10_cols_10000_Rows_train_C6Gam.csv");
       Scope.track(rTransformedData);
-      TestUtil.assertIdenticalUpToRelTolerance(transformedData, rTransformedData, 1e-4);
 
       Frame transformedDataC = ((Frame) DKV.getGet(model._output._gamTransformedTrainCenter));  // compare model matrix with centering
       Scope.track(transformedDataC);
@@ -259,11 +255,11 @@ public class GamTestPiping extends TestUtil {
    */
   public void checkHessian(DataInfo dinfo, GLMModel.GLMParameters params, GAMModel model,
                            GLMModel.GLMParameters.Family fam) {
-    double[] betaG = model._output._glm_model_beta;
-    double[][] beta_multinomial = model._output._glm_model_beta_multinomial;
+    double[] betaG = model._output._model_beta;
+    double[][] beta_multinomial = model._output._model_beta_multinomial;
     int nclass = fam.equals(gaussian)?1:beta_multinomial.length;
     if (fam.equals(multinomial)) {
-      double[] nb = TestUtil.changeDouble2SingleArray(model._output._glm_model_beta_multinomial);
+      double[] nb = TestUtil.changeDouble2SingleArray(model._output._model_beta_multinomial);
       double maxRow = ArrayUtils.maxValue(nb);
       double sumExp = 0;
       int P = dinfo.fullN();
@@ -331,7 +327,7 @@ public class GamTestPiping extends TestUtil {
     int[][] gamCoeffIndices = new int[][]{{10, 11, 12, 13}, {14, 15, 16, 17}, {18, 19, 20, 21}};
     double[][][] penalty_mat = model._output._penaltyMatrices_center;
     glmParms._glmType = gam;
-    double[] beta = fam.equals(gaussian)?model._output._glm_model_beta:TestUtil.changeDouble2SingleArray(model._output._glm_model_beta_multinomial);
+    double[] beta = fam.equals(gaussian)?model._output._model_beta :TestUtil.changeDouble2SingleArray(model._output._model_beta_multinomial);
     GLM.GLMGradientInfo ginfo = new GLM.GLMGradientSolver(null, glmParms, dinfo, 0, null,
             penalty_mat, gamCoeffIndices).getGradient(beta);
     double[] gamGradient = ginfo._gradient;
@@ -343,7 +339,7 @@ public class GamTestPiping extends TestUtil {
     double[] glmGradient = ginfoGLM._gradient; // add penalty part to this gradient manually
     double objGlm = ginfoGLM._objVal; // need to manually add gam penalty term
     int numGamCol = penalty_mat.length; // total number of gam cols to deal with   
-    int nclass = fam.equals(gaussian)?1:model._output._glm_model_beta_multinomial.length;
+    int nclass = fam.equals(gaussian)?1:model._output._model_beta_multinomial.length;
     int coeffNPerClass = beta.length/nclass;
     int classOffset = 0;
     double tempObj = 0.0;

@@ -117,6 +117,17 @@ public class GAM extends ModelBuilder<GAMModel, GAMModel.GAMParameters, GAMModel
         _parms._use_all_factor_levels = true;
       if (_parms._link.equals(GLMParameters.Link.family_default))
         _parms._link = _parms._family.defaultLink;
+      switch (_parms._family) {
+        case gaussian: break;
+        case binomial: break;
+        case quasibinomial: break;
+        case poisson: break;
+        case gamma: break;
+        case multinomial: break;
+        case tweedie: break;
+        case ordinal: break;
+        case negativebinomial: break;
+      }
     }
   }
 
@@ -178,8 +189,8 @@ public class GAM extends ModelBuilder<GAMModel, GAMModel.GAMParameters, GAMModel
 
       addGAM2Train(_parms, _parms.train(), _zTranspose, _penalty_mat_center, _gamColNames, _gamColNamesCenter,
               true, _centerGAM, _gamFrameKeys, _gamFrameKeysCenter, _binvD, _numKnots, _knots,
-              _parms._savePenaltyMat, _penalty_mat);
-      return buildGamFrame(numGamFrame, _gamFrameKeys, _train, _parms._response_column); // add gam cols to _train
+              _parms._savePenaltyMat, _penalty_mat);  // add GAM columns to training frame
+      return buildGamFrame(numGamFrame, _gamFrameKeysCenter, _train, _parms._response_column); // add gam cols to _train
     }
 
     @Override
@@ -200,27 +211,22 @@ public class GAM extends ModelBuilder<GAMModel, GAMModel.GAMParameters, GAMModel
       try {
         _job.update(0, "Adding GAM columns to training dataset...");
         Frame newTrain = rebalance(adaptTrain(), false, _result+".temporary.train"); // add and store gam cols without centering
-        dinfo = new DataInfo(newTrain.clone(), _valid, 1, _parms._use_all_factor_levels || _parms._lambda_search, DataInfo.TransformType.NONE, DataInfo.TransformType.NONE,
+        newTFrame = new Frame(newTrain);  // get frames with correct predictors and spline functions
+        DKV.put(newTFrame); // This one will cause deleted vectors if add to Scope.track
+        dinfo = new DataInfo(newTFrame.clone(), _valid, 1, _parms._use_all_factor_levels 
+                || _parms._lambda_search, _parms._standardize ? DataInfo.TransformType.STANDARDIZE : DataInfo.TransformType.NONE, DataInfo.TransformType.NONE,
                 _parms.missingValuesHandling() == GLMParameters.MissingValuesHandling.Skip,
                 _parms.missingValuesHandling() == GLMParameters.MissingValuesHandling.MeanImputation || _parms.missingValuesHandling() == GLMParameters.MissingValuesHandling.PlugValues,
                 _parms.makeImputer(),
-                false, hasWeightCol(), hasOffsetCol(), hasFoldCol(), null);
+                false, hasWeightCol(), hasOffsetCol(), hasFoldCol(), _parms.interactionSpec());
         DKV.put(dinfo._key, dinfo);
         model = new GAMModel(dest(), _parms, new GAMModel.GAMModelOutput(GAM.this, dinfo._adaptedFrame, dinfo));
         model.delete_and_lock(_job);
-        newTFrame = _centerGAM?new Frame(buildGamFrameCenter(_parms._gam_X.length, _gamFrameKeysCenter, _parms.train(),
-                _parms._response_column, _parms.train().numCols(), _parms.train().names())):new Frame(dinfo._adaptedFrame);  // get frames with correct predictors and spline functions
-        DKV.put(newTFrame); // This one will cause deleted vectors if add to Scope.track
         if (_parms._saveGamCols) {  // save gam column keys
-          gamColsFrame = saveGAMFrames(newTrain);
-          DKV.put(gamColsFrame);  // do not Scope.track this, will cause null frame
-          model._output._gamTransformedTrain = gamColsFrame._key;
-          if (_centerGAM) {
-            gamColsFrameCenter = saveGAMFrames(newTFrame);
-            DKV.put(gamColsFrameCenter);
-            model._output._gamTransformedTrainCenter = gamColsFrameCenter._key;
-            model._output._gamGamXCenter = newTFrame._key;
-          }
+          gamColsFrameCenter = saveGAMFrames(newTFrame);
+          DKV.put(gamColsFrameCenter);
+          model._output._gamTransformedTrainCenter = gamColsFrameCenter._key;
+          model._output._gamGamXCenter = newTFrame._key;
         }
 
         _job.update(1, "calling GLM to build GAM model...");
@@ -231,16 +237,19 @@ public class GAM extends ModelBuilder<GAMModel, GAMModel.GAMParameters, GAMModel
         // call adaptTeatForTrain() to massage frame before scoring.
         model.update(_job);
         // create model summary by calling createModelSummaryTable or something like that
-        model._output._model_summary = createModelSummaryTable(model._output);
+        model._output._model_summary = createModelSummaryTable(model._output, false);
+        model._output._model_summary_GAM = createModelSummaryTable(model._output, true);
         model.update(_job);
         // build GAM Model Metrics
+        _job.update(0, "Scoring training frame");
+        scoreGenModelMetrics(model, train(), true); // score training dataset and generate model metrics
+        if (valid() != null)
+          scoreGenModelMetrics(model, valid(), false); // score validation dataset and generate model metrics
       } finally {
         List<Key<Vec>> keep = new ArrayList<>();
         if (model != null) {
           if (_parms._saveGamCols) {
-            addFrameKeys2Keep(keep, newTFrame._key, model._output._gamTransformedTrain);
-            if (_centerGAM)
-              addFrameKeys2Keep(keep, model._output._gamTransformedTrainCenter);
+            addFrameKeys2Keep(keep, model._output._gamTransformedTrainCenter);
           }
           model.unlock(_job);
           Scope.untrack(keep);  // leave the vectors alone.
@@ -249,51 +258,72 @@ public class GAM extends ModelBuilder<GAMModel, GAMModel.GAMParameters, GAMModel
           dinfo.remove();
       }
     }
-
-
-    private TwoDimTable createModelSummaryTable(GAMModel.GAMModelOutput modelOut) {
-      String[] colHeaders = new String[]{"coefficient name", "coefficient value"};
+    
+    /**
+     * This part will perform scoring and generate the model metrics for training data and validation data if 
+     * provided by user.
+     *      
+     * @param model
+     * @param scoreFrame
+     * @param forTraining: true for training dataset and false for validation dataset
+     */
+    private void scoreGenModelMetrics(GAMModel model, Frame scoreFrame, boolean forTraining) {
+      Frame scoringTrain = new Frame(train());
+      model.adaptTestForTrain(scoringTrain, true, true);
+      Frame scoredResult = model.score(scoringTrain);
+      scoredResult.delete();
+    }
+    
+    private TwoDimTable createModelSummaryTable(GAMModel.GAMModelOutput modelOut, boolean forGAM) {
+      String[] colHeaders = forGAM?new String[]{"coefficient name no centering", "coefficient value no centering"}
+      :new String[]{"coefficient name", "coefficient value"};
       String[] colTypes = new String[]{"string", "double"};
       String[] colFormat = new String[]{"", "%5f"};
       boolean multiOrOrdinal = _parms._family.equals(multinomial) || 
               _parms._family.equals(GLMModel.GLMParameters.Family.ordinal);
-      int nCoeff = modelOut._coefficient_names.length;
+      int nCoeff = forGAM?modelOut._coefficient_names_no_centering.length:modelOut._coefficient_names.length;
       int nclass = 1;
       if (_parms._family.equals(multinomial)) {
-        nclass = modelOut._glm_model_beta_multinomial.length;
+        nclass = modelOut._model_beta_multinomial_no_centering.length;
       }
       int totCoeff = 2*nclass*nCoeff;
       int totCoeffHalf = totCoeff/2;
       String[] coeffNames = new String[totCoeff];
-      System.arraycopy(modelOut._coefficient_names, 0, coeffNames, 0, nCoeff);
       if (multiOrOrdinal) {
-
         int coeffCounter=0;
         for (int classInd=0; classInd < nclass; classInd++){
           for (int ind=0; ind < nCoeff; ind++) {
-            coeffNames[coeffCounter] = modelOut._coefficient_names[ind]+"_class_"+classInd;
-            coeffNames[totCoeffHalf+coeffCounter++] = modelOut._coefficient_names[ind]+"_class_"+classInd+"_standardized";
+            coeffNames[coeffCounter] = forGAM?modelOut._coefficient_names_no_centering[ind]:
+                    modelOut._coefficient_names[ind]+"_class_"+classInd;
+            coeffNames[totCoeffHalf+coeffCounter++] = forGAM?modelOut._coefficient_names_no_centering[ind]:
+                    modelOut._coefficient_names[ind]+"_class_"+classInd+"_standardized";
           }
         }
       } else {
-        System.arraycopy(modelOut._coefficient_names, 0, coeffNames, 0, nCoeff);
-        for (int ind = 0; ind < nCoeff; ind++)
-          coeffNames[ind+nCoeff] = modelOut._coefficient_names[ind]+"_standardized";
+        System.arraycopy(forGAM?modelOut._coefficient_names_no_centering:modelOut._coefficient_names, 0, 
+                coeffNames, 0, nCoeff);
+        for (int ind = 0; ind < nCoeff; ind++) {
+          coeffNames[ind+nCoeff] =forGAM?modelOut._coefficient_names_no_centering[ind]:
+                  modelOut._coefficient_names[ind] +"_standardized";
+        }
       }
 
-      TwoDimTable table = new TwoDimTable("Model Summary", "GAM Coefficients",
+      TwoDimTable table = new TwoDimTable("Model Summary", forGAM?"GAM Coefficients no centering":"GAM Coefficients",
               coeffNames, colHeaders, colTypes, colFormat,"names");
       if (_parms._family.equals(multinomial) || _parms._family.equals(GLMModel.GLMParameters.Family.ordinal)) {
         for (int classInd=0; classInd<nclass; classInd++) 
-          fillUpCoeffs(coeffNames, modelOut._model_beta_multinomial[classInd], table, 
+          fillUpCoeffs(coeffNames, forGAM?modelOut._model_beta_multinomial_no_centering[classInd]
+                          :modelOut._model_beta_multinomial[classInd], table, 
                   classInd*nCoeff);
         for (int classInd=0; classInd<nclass; classInd++)
-          fillUpCoeffs(coeffNames, modelOut._standardized_model_beta_multinomial[classInd], table, 
+          fillUpCoeffs(coeffNames, forGAM?modelOut._standardized_model_beta_multinomial_no_centering[classInd]
+                          :modelOut._standardized_model_beta_multinomial[classInd], table, 
                   totCoeffHalf+classInd*nCoeff);
       } else {
-        fillUpCoeffs(coeffNames, modelOut._model_beta, table, 0);
-        fillUpCoeffs(coeffNames, modelOut._standardized_model_beta, table, 
-                modelOut._model_beta.length);
+        fillUpCoeffs(coeffNames, forGAM?modelOut._model_beta_no_centering:modelOut._model_beta, table, 0);
+        fillUpCoeffs(coeffNames, forGAM?modelOut._standardized_model_beta_no_centering
+                        :modelOut._standardized_model_beta, table, 
+                forGAM?modelOut._model_beta_no_centering.length:modelOut._model_beta.length);
       }
       return table;
     }
@@ -323,8 +353,8 @@ public class GAM extends ModelBuilder<GAMModel, GAMModel.GAMParameters, GAMModel
     
     void fillOutGAMModel(GLMModel glm, GAMModel model, DataInfo dinfo) {
       model._centerGAM = _centerGAM;
-      model._gamColNames = _gamColNames;  // copy over gam column names
-      model._gamColNamesCenter = _gamColNamesCenter;
+      model._gamColNamesNoCentering = _gamColNames;  // copy over gam column names
+      model._gamColNames = _gamColNamesCenter;
       model._output._zTranspose = _zTranspose;
       model._gamFrameKeys = _gamFrameKeys;
       model._gamFrameKeysCenter = _gamFrameKeysCenter;
@@ -342,7 +372,7 @@ public class GAM extends ModelBuilder<GAMModel, GAMModel.GAMParameters, GAMModel
     
     private void copyGLMtoGAMModel(GAMModel model, GLMModel glmModel) {
       int colLength = glmModel._output._names.length;
-      model._output._names = new String[colLength];
+/*      model._output._names = new String[colLength];
       System.arraycopy(glmModel._output._names, 0, model._output._names, 0, colLength);
       model._output._column_types = new String[colLength];
       System.arraycopy(glmModel._output._column_types, 0, model._output._column_types, 0, colLength);
@@ -353,8 +383,8 @@ public class GAM extends ModelBuilder<GAMModel, GAMModel.GAMParameters, GAMModel
           System.arraycopy(glmModel._output._domains[index], 0, model._output._domains[index], 0, 
                   glmModel._output._domains[index].length);
         }
-      }
-      model._output._glm_best_lamda_value = glmModel._output.lambda_selected(); // exposed best lambda used
+      }*/
+      model._output._glm_best_lamda_value = glmModel._output.bestSubmodel().lambda_value; // exposed best lambda used
       model._output._glm_training_metrics = glmModel._output._training_metrics;
       if (valid() != null)
         model._output._glm_validation_metrics = glmModel._output._validation_metrics;
@@ -367,6 +397,12 @@ public class GAM extends ModelBuilder<GAMModel, GAMModel.GAMParameters, GAMModel
         model._output._glm_vcov = glmModel._output.vcov().clone();
       }
       model._output._glm_dispersion = glmModel._output.dispersion();
+      model._nobs = glmModel._nobs;
+      model._nullDOF = glmModel._nullDOF;
+      model._ymu = new double[glmModel._ymu.length];
+      model._rank = glmModel._output.bestSubmodel().rank();
+      model._ymu = new double[glmModel._ymu.length];
+      System.arraycopy(glmModel._ymu, 0, model._ymu, 0, glmModel._ymu.length);
     }
 
 /*    private static TwoDimTable createModelSummaryTable(GAMModel gamModel, GLMModel glmModel) {
@@ -374,31 +410,31 @@ public class GAM extends ModelBuilder<GAMModel, GAMModel.GAMParameters, GAMModel
     }*/
     
     void copyGLMCoeffs(GLMModel glm, GAMModel model, DataInfo dinfo) {
-      int totCoeffNums = dinfo.fullN()+1;
-      model._output._coefficient_names = new String[totCoeffNums]; // copy coefficient names from GLM to GAM
+      int totCoefNumsNoCenter = dinfo.fullN()+1+_parms._gam_X.length;
+      model._output._coefficient_names_no_centering = new String[totCoefNumsNoCenter]; // copy coefficient names from GLM to GAM
       int gamNumStart = copyGLMCoeffNames2GAMCoeffNames(model, glm, dinfo);
       copyGLMCoeffs2GAMCoeffs(model, glm, dinfo, _parms._family, gamNumStart, _parms._standardize, _nclass); // obtain beta without centering
       // copy over GLM coefficients
       int glmCoeffLen = glm._output._coefficient_names.length;
-      model._output._glm_coefficient_names = new String[glmCoeffLen];
-      System.arraycopy(glm._output._coefficient_names, 0, model._output._glm_coefficient_names, 0,
+      model._output._coefficient_names = new String[glmCoeffLen];
+      System.arraycopy(glm._output._coefficient_names, 0, model._output._coefficient_names, 0,
               glmCoeffLen);
       if (_parms._family == multinomial || _parms._family == GLMParameters.Family.ordinal) {
         double[][] model_beta_multinomial = glm._output.get_global_beta_multinomial();
         double[][] standardized_model_beta_multinomial = glm._output.getNormBetaMultinomial();
-        model._output._glm_model_beta_multinomial = new double[_nclass][glmCoeffLen];
-        model._output._glm_standardized_model_beta_multinomial = new double[_nclass][glmCoeffLen];
+        model._output._model_beta_multinomial = new double[_nclass][glmCoeffLen];
+        model._output._standardized_model_beta_multinomial = new double[_nclass][glmCoeffLen];
         for (int classInd = 0; classInd < _nclass; classInd++) {
           System.arraycopy(model_beta_multinomial[classInd], 0, model._output._model_beta_multinomial[classInd],
                   0, glmCoeffLen);
           System.arraycopy(standardized_model_beta_multinomial[classInd], 0, 
-                  model._output._glm_standardized_model_beta_multinomial[classInd], 0, glmCoeffLen);
+                  model._output._standardized_model_beta_multinomial[classInd], 0, glmCoeffLen);
         }
       } else {
-        model._output._glm_model_beta = new double[glmCoeffLen];
-        model._output._glm_standardized_model_beta = new double[glmCoeffLen];
-        System.arraycopy(glm._output.beta(), 0, model._output._glm_model_beta, 0, glmCoeffLen);
-        System.arraycopy(glm._output.getNormBeta(), 0, model._output._glm_standardized_model_beta, 0, 
+        model._output._model_beta = new double[glmCoeffLen];
+        model._output._standardized_model_beta = new double[glmCoeffLen];
+        System.arraycopy(glm._output.beta(), 0, model._output._model_beta, 0, glmCoeffLen);
+        System.arraycopy(glm._output.getNormBeta(), 0, model._output._standardized_model_beta, 0, 
                 glmCoeffLen);
       }
     }
