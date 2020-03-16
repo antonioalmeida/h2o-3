@@ -189,7 +189,6 @@ public class NaiveBayes extends ModelBuilder<NaiveBayesModel,NaiveBayesParameter
         NBTask tsk = new NBTask(_job._key, dinfo, _response.cardinality()).doAll(dinfo._adaptedFrame);
         if (computeStatsFillModel(model, dinfo, tsk))
           model.update(_job);
-        checkEffectiveParmsDoesNotContainAuto(model._effective_parms);
       } finally {
         if (model != null) model.unlock(_job);
         if (dinfo != null) dinfo.remove();

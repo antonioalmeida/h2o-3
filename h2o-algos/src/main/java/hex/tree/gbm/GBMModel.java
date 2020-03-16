@@ -95,10 +95,10 @@ public class GBMModel extends SharedTreeModelWithContributions<GBMModel, GBMMode
 
   public GBMModel(Key<GBMModel> selfKey, GBMParameters parms, GBMOutput output) {
     super(selfKey,parms,output);
-    initEffectiveParam();
   }
 
-  void initEffectiveParam() {
+  @Override
+  public void initEffectiveParam() {
     EffectiveParametersUtils.initCategoricalEncoding(_parms, _effective_parms, _output._nclasses, Parameters.CategoricalEncodingScheme.Enum);
     EffectiveParametersUtils.initStoppingMetric(_parms, _effective_parms, _output.isClassifier(), _output.isAutoencoder());
     EffectiveParametersUtils.initDistribution(_parms, _effective_parms, _output._nclasses);

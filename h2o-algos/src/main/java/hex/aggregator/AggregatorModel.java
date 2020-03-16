@@ -58,10 +58,9 @@ public class AggregatorModel extends Model<AggregatorModel,AggregatorModel.Aggre
 
   public AggregatorModel(Key selfKey, AggregatorParameters parms, AggregatorOutput output) { 
     super(selfKey,parms,output);
-    initEffectiveParam();
   }
 
-  void initEffectiveParam() {
+  public void initEffectiveParam() {
     _effective_parms._fold_assignment = null;
     _effective_parms._stopping_metric = null;
     _effective_parms._distribution = null;

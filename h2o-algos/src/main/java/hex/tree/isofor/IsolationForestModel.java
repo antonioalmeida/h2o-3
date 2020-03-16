@@ -56,10 +56,10 @@ public class IsolationForestModel extends SharedTreeModel<IsolationForestModel, 
 
   public IsolationForestModel(Key<IsolationForestModel> selfKey, IsolationForestParameters parms, IsolationForestOutput output ) { 
     super(selfKey, parms, output);
-    initEffectiveParam();
   }
 
-  void initEffectiveParam() {
+  @Override
+  public void initEffectiveParam() {
     if (_parms._stopping_metric == ScoreKeeper.StoppingMetric.AUTO){
       if (_parms._stopping_rounds == 0) {
         _effective_parms._stopping_metric = null;

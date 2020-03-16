@@ -923,6 +923,14 @@ public abstract class Model<M extends Model<M,P,O>, P extends Model.Parameters, 
     _dist = isSupervised() && _output.nclasses() == 1 ? DistributionFactory.getDistribution(_parms) : null;
     Log.info("Starting model "+ selfKey);
   }
+
+  public void initEffectiveParam() {
+    _effective_parms._fold_assignment = null;
+    _effective_parms._stopping_metric = null;
+    _effective_parms._distribution = null;
+    _effective_parms._categorical_encoding = null;
+  }
+  
   /**
    * Deviance of given distribution function at predicted value f
    * @param w observation weight

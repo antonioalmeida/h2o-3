@@ -230,7 +230,6 @@ public class Aggregator extends ModelBuilder<AggregatorModel,AggregatorModel.Agg
         }
         _job.update(1, "Done.");
         model.update(_job);
-        checkEffectiveParmsDoesNotContainAuto(model._effective_parms);
       } finally {
         if (model != null) {
           model.unlock(_job);

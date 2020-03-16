@@ -70,10 +70,10 @@ public class KMeansModel extends ClusteringModel<KMeansModel,KMeansModel.KMeansP
 
   public KMeansModel(Key selfKey, KMeansParameters parms, KMeansOutput output) { 
     super(selfKey,parms,output);
-    initEffectiveParam();
   }
 
-  void initEffectiveParam() {
+  @Override
+  public void initEffectiveParam() {
     EffectiveParametersUtils.initFoldAssignment(_parms, _effective_parms);
     _effective_parms._distribution = null;
     _effective_parms._stopping_metric = null;

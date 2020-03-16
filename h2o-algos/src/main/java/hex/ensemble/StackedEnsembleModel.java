@@ -40,6 +40,16 @@ public class StackedEnsembleModel extends Model<StackedEnsembleModel,StackedEnse
     super(selfKey, parms, output);
   }
 
+  public void initEffectiveParam() {
+    super.initEffectiveParam();
+    if (_parms._metalearner_fold_assignment == AUTO) {
+      _effective_parms._metalearner_fold_assignment = Random;
+    }
+    if (_parms._metalearner_algorithm == Metalearner.Algorithm.AUTO) {
+      _effective_parms._metalearner_algorithm = Metalearner.Algorithm.glm;
+    }
+  }
+  
   public static class StackedEnsembleParameters extends Model.Parameters {
     public String algoName() { return "StackedEnsemble"; }
     public String fullName() { return "Stacked Ensemble"; }

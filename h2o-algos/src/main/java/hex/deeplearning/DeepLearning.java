@@ -213,6 +213,17 @@ public class DeepLearning extends ModelBuilder<DeepLearningModel,DeepLearningMod
       long cs2 = _parms.checksum();
       assert(cs == cs2);
     }
+    
+    @Override 
+    public void computeEffectiveParameters() {
+      DeepLearningModel model = _result.get();
+      model._effective_parms = (DeepLearningModel.DeepLearningParameters) _parms.clone();
+      model._effective_parms._distribution = model._dist._family;
+      EffectiveParametersUtils.initStoppingMetric(_parms, model._effective_parms, model._output.isClassifier(), model.isSupervised());
+      EffectiveParametersUtils.initCategoricalEncoding(_parms, model._effective_parms, model._output.nclasses(), Model.Parameters.CategoricalEncodingScheme.OneHotInternal);
+      initEffectiveParam(model);
+      checkEffectiveParmsDoesNotContainAuto(model._effective_parms);
+    }
 
     /**
      * Train a Deep Learning model, assumes that all members are populated
@@ -303,9 +314,7 @@ public class DeepLearning extends ModelBuilder<DeepLearningModel,DeepLearningMod
           if (cp != null) cp.unlock(_job);
         }
       }
-      initEffectiveParam(cp);
       trainModel(cp);
-      checkEffectiveParmsDoesNotContainAuto(cp._effective_parms);
       for (Key k : removeMe) DKV.remove(k);
 
       // clean up, but don't delete weights and biases if user asked for export

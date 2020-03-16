@@ -380,7 +380,6 @@ public class XGBoost extends ModelBuilder<XGBoostModel,XGBoostModel.XGBoostParam
           XGBoostUpdateTask nullModelTask = new XGBoostUpdateTask(setupTask, 0).run();
           BoosterProvider boosterProvider = new BoosterProvider(model.model_info(), featureMapFile, nullModelTask);
           scoreAndBuildTrees(setupTask, boosterProvider, model);
-          checkEffectiveParmsDoesNotContainAuto(model._effective_parms);
         } finally {
           XGBoostCleanupTask.cleanUp(setupTask);
           stopRabitTracker(rt);
@@ -396,6 +395,24 @@ public class XGBoost extends ModelBuilder<XGBoostModel,XGBoostModel.XGBoostParam
         // Unlock & save results
         model.unlock(_job);
       }
+    }
+    
+    @Override
+    public void computeEffectiveParameters() {
+      XGBoostModel model = _result.get();
+      model._effective_parms = (XGBoostModel.XGBoostParameters) _parms.clone();
+      model.initEffectiveParam();
+      model._effective_parms._dmatrix_type = isTrainDatasetSparse() ? XGBoostModel.XGBoostParameters.DMatrixType.sparse : XGBoostModel.XGBoostParameters.DMatrixType.dense;
+      if ( model._effective_parms._tree_method == XGBoostModel.XGBoostParameters.TreeMethod.auto) {
+        if (H2O.getCloudSize() > 1) {
+          model._effective_parms._tree_method =  XGBoostModel.XGBoostParameters.TreeMethod.approx;
+        } else if (train().numRows() >= (4 << 20)) {
+          model._effective_parms._tree_method =  XGBoostModel.XGBoostParameters.TreeMethod.approx;
+        } else {
+          model._effective_parms._tree_method =  XGBoostModel.XGBoostParameters.TreeMethod.exact;
+        }
+      }
+      checkEffectiveParmsDoesNotContainAuto(model._effective_parms);
     }
 
     /**

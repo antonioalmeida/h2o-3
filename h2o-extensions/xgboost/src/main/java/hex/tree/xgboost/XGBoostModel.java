@@ -217,18 +217,19 @@ public class XGBoostModel extends Model<XGBoostModel, XGBoostModel.XGBoostParame
 
   public XGBoostModel(Key<XGBoostModel> selfKey, XGBoostParameters parms, XGBoostOutput output, Frame train, Frame valid) {
     super(selfKey,parms,output);
-    initEffectiveParam();
     final DataInfo dinfo = makeDataInfo(train, valid, _parms, output.nclasses());
     DKV.put(dinfo);
     setDataInfoToOutput(dinfo);
     model_info = new XGBoostModelInfo(parms, dinfo);
   }
 
-  void initEffectiveParam() {
+  @Override
+  public void initEffectiveParam() {
     EffectiveParametersUtils.initStoppingMetric(_parms, _effective_parms, _output.isClassifier(), _output.isAutoencoder());
     EffectiveParametersUtils.initCategoricalEncoding(_parms, _effective_parms, _output.nclasses(), Parameters.CategoricalEncodingScheme.OneHotInternal);
     EffectiveParametersUtils.initFoldAssignment(_parms, _effective_parms);
     EffectiveParametersUtils.initDistribution(_parms, _effective_parms, _output.nclasses());
+    _effective_parms._backend = getActualBackend(_parms);
   }
   
   // useful for debugging

@@ -290,8 +290,7 @@ public class KMeans extends ClusteringModelBuilder<KMeansModel,KMeansModel.KMean
         if( centers==null ) return; // Stopped/cancelled during center-finding
         boolean work_unit_iter = !_parms._estimate_k;
         boolean constrained = _parms._cluster_size_constraints != null;
-        EffectiveParametersUtils.initCategoricalEncoding(_parms, model._effective_parms, model._output._categorical_column_count + 1, Model.Parameters.CategoricalEncodingScheme.Enum);
-        
+
         // ---
         // Run the main KMeans Clustering loop
         // Stop after enough iterations or reassigned_count < TOLERANCE * num_rows
@@ -435,12 +434,20 @@ public class KMeans extends ClusteringModelBuilder<KMeansModel,KMeansModel.KMean
         }
         model._parms._fold_column = fold_column;
         model.update(_job); // Update model in K/V store
-        checkEffectiveParmsDoesNotContainAuto(model._effective_parms);  
       } finally {
         if( model != null ) model.unlock(_job);
         DKV.remove(bestOutputKey);
       }
     }
+    
+    @Override
+    public void computeEffectiveParameters() {
+      KMeansModel model = _result.get();
+      model._effective_parms = (KMeansModel.KMeansParameters) _parms.clone();
+      model.initEffectiveParam();
+      EffectiveParametersUtils.initCategoricalEncoding(_parms, model._effective_parms, model._output._categorical_column_count + 1, Model.Parameters.CategoricalEncodingScheme.Enum);
+      checkEffectiveParmsDoesNotContainAuto(model._effective_parms);
+     }
 
     double[][] splitLargestCluster(double[][] centers, double[][] lo, double[][] hi, double[] means, double[] mults, int[] impute_cat, Vec[] vecs2, int k) {
       double[][] newCenters = Arrays.copyOf(centers, centers.length + 1);

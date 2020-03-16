@@ -31,10 +31,10 @@ public class DRFModel extends SharedTreeModelWithContributions<DRFModel, DRFMode
 
   public DRFModel(Key<DRFModel> selfKey, DRFParameters parms, DRFOutput output ) {
     super(selfKey, parms, output);
-    initEffectiveParam();
   }
 
-  void initEffectiveParam() {
+  @Override
+  public void initEffectiveParam() {
     EffectiveParametersUtils.initStoppingMetric(_parms, _effective_parms, _output.isClassifier(), _output.isAutoencoder());
     EffectiveParametersUtils.initCategoricalEncoding(_parms, _effective_parms, _output.nclasses(), Parameters.CategoricalEncodingScheme.Enum);
     EffectiveParametersUtils.initFoldAssignment(_parms, _effective_parms);

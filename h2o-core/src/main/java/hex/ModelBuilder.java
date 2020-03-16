@@ -241,6 +241,7 @@ abstract public class ModelBuilder<M extends Model<M,P,O>, P extends Model.Param
         Scope.enter();
         _parms.read_lock_frames(_job); // Fetch & read-lock input frames
         computeImpl();
+        computeEffectiveParameters();
         saveModelCheckpointIfConfigured();
       } finally {
         setFinalState();
@@ -263,6 +264,15 @@ abstract public class ModelBuilder<M extends Model<M,P,O>, P extends Model.Param
     }
 
     public abstract void computeImpl();
+    
+    public void computeEffectiveParameters() {
+      M model = _result.get();
+      if (model != null) {
+        model._effective_parms = (P) _parms.clone();
+        model.initEffectiveParam();
+        checkEffectiveParmsDoesNotContainAuto(model._effective_parms);
+      }
+    }
   }
 
   public void checkEffectiveParmsDoesNotContainAuto(Model.Parameters effectiveParameters){

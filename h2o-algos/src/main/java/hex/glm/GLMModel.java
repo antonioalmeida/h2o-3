@@ -33,7 +33,6 @@ public class GLMModel extends Model<GLMModel,GLMModel.GLMParameters,GLMModel.GLM
   final static public double _OneOEPS = 1e6;
   public GLMModel(Key selfKey, GLMParameters parms, GLM job, double [] ymu, double ySigma, double lambda_max, long nobs) {
     super(selfKey, parms, job == null?new GLMOutput():new GLMOutput(job));
-    initEffectiveParam();
     // modelKey, parms, null, Double.NaN, Double.NaN, Double.NaN, -1
     _ymu = ymu;
     _ySigma = ySigma;
@@ -41,8 +40,9 @@ public class GLMModel extends Model<GLMModel,GLMModel.GLMParameters,GLMModel.GLM
     _nobs = nobs;
     _nullDOF = nobs - (parms._intercept?1:0);
   }
-  
-  void initEffectiveParam() {
+
+  @Override
+  public void initEffectiveParam() {
     EffectiveParametersUtils.initFoldAssignment(_parms, _effective_parms);
     _effective_parms._categorical_encoding = null;
     _effective_parms._distribution = null;
