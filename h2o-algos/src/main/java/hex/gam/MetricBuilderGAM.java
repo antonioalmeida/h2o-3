@@ -67,11 +67,13 @@ public class MetricBuilderGAM extends ModelMetricsSupervised.MetricBuilderSuperv
   private void add2(double yresp, double ypredict, double weight, double offset) {
     _wcount += weight;
     ++_nobs;
-    _residual_deviance += weight*_glmf.deviance(yresp,ypredict);
-    if (offset==0)
-      _null_deviance += weight*_glmf.deviance(yresp, _ymu[0]);
-    else
-      _null_deviance += weight*_glmf.deviance(yresp, _glmf.linkInv(offset+_glmf.link(_ymu[0])));
+    if (!_glmf._family.equals(multinomial)) {
+      _residual_deviance += weight * _glmf.deviance(yresp, ypredict);
+      if (offset == 0)
+        _null_deviance += weight * _glmf.deviance(yresp, _ymu[0]);
+      else
+        _null_deviance += weight * _glmf.deviance(yresp, _glmf.linkInv(offset + _glmf.link(_ymu[0])));
+    }
     if (_glmf._family.equals(poisson)) {  // AIC for poisson
       long y = Math.round(yresp);
       double logfactorial = MathUtils.logFactorial(y);

@@ -381,10 +381,20 @@ public class GamTestPiping extends TestUtil {
   public void testAgainstRGam() {
     Scope.enter();
     try {
+      // multinomial
+      String[] ignoredCols = new String[]{"C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10"};
+      String[] gamCols = new String[]{"C6", "C7", "C8"};
+
+      GAMModel multinomialModel = getModel(multinomial,
+              Scope.track(parse_test_file("smalldata/glm_test/multinomial_10_classes_10_cols_10000_Rows_train.csv"))
+              , "C11", gamCols, ignoredCols, new int[]{5, 5, 5}, new int[]{0, 0, 0},
+              false, true, null, new double[]{1, 1, 1}, new double[]{0, 0, 0},
+              new double[]{0, 0, 0}, true);
+      Scope.track_generic(multinomialModel);
       // test for gaussian
-      String[] ignoredCols = new String[]{"C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14",
+      ignoredCols = new String[]{"C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14",
               "C15", "C16", "C17", "C18", "C19", "C20"};
-      String[] gamCols = new String[]{"C11", "C12", "C13"};
+      gamCols = new String[]{"C11", "C12", "C13"};
       GAMModel binomialModel = getModel(binomial,  Scope.track(parse_test_file("smalldata/glm_test/binomial_20_cols_10KRows.csv"))
               , "C21", gamCols, ignoredCols, new int[]{5, 5, 5}, new int[]{0, 0, 0},
               false, true, null, new double[]{1, 1, 1}, new double[]{0, 0, 0},
@@ -398,16 +408,7 @@ public class GamTestPiping extends TestUtil {
               new double[]{0, 0, 0}, true);
       Scope.track_generic(gaussianmodel);
       
-      // multinomial
-      ignoredCols = new String[]{"C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10"};
-      gamCols = new String[]{"C6", "C7", "C8"};
 
-      GAMModel multinomialModel = getModel(multinomial,  
-              Scope.track(parse_test_file("smalldata/glm_test/multinomial_10_classes_10_cols_10000_Rows_train.csv"))
-              , "C11", gamCols, ignoredCols, new int[]{5, 5, 5}, new int[]{0, 0, 0},
-              false, true, null, new double[]{1, 1, 1}, new double[]{0, 0, 0},
-              new double[]{0, 0, 0}, true);
-      Scope.track_generic(multinomialModel);
     } finally {
       Scope.exit();
     }

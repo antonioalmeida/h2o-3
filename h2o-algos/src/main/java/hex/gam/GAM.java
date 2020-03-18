@@ -383,19 +383,6 @@ public class GAM extends ModelBuilder<GAMModel, GAMModel.GAMParameters, GAMModel
     }
     
     private void copyGLMtoGAMModel(GAMModel model, GLMModel glmModel) {
-      int colLength = glmModel._output._names.length;
-/*      model._output._names = new String[colLength];
-      System.arraycopy(glmModel._output._names, 0, model._output._names, 0, colLength);
-      model._output._column_types = new String[colLength];
-      System.arraycopy(glmModel._output._column_types, 0, model._output._column_types, 0, colLength);
-      model._output._domains = new String[colLength][];
-      for (int index=0; index < colLength; index++) {
-        if (glmModel._output._domains[index] != null) {
-          model._output._domains[index] = new String[glmModel._output._domains[index].length];
-          System.arraycopy(glmModel._output._domains[index], 0, model._output._domains[index], 0, 
-                  glmModel._output._domains[index].length);
-        }
-      }*/
       model._output._glm_best_lamda_value = glmModel._output.bestSubmodel().lambda_value; // exposed best lambda used
       model._output._glm_training_metrics = glmModel._output._training_metrics;
       if (valid() != null)

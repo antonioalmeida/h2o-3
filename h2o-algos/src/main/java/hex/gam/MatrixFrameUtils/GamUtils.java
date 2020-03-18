@@ -135,11 +135,11 @@ public class GamUtils {
       double[][] model_beta_multinomial = glm._output.get_global_beta_multinomial();
       double[][] standardized_model_beta_multinomial = glm._output.getNormBetaMultinomial();
       model._output._model_beta_multinomial_no_centering = new double[nclass][];
-      model._output._standardized_model_beta_multinomial = new double[nclass][];
+      model._output._standardized_model_beta_multinomial_no_centering = new double[nclass][];
       for (int classInd = 0; classInd < nclass; classInd++) {
         model._output._model_beta_multinomial_no_centering[classInd] = convertCenterBeta2Beta(model._output._zTranspose,
                 gamNumStart, model_beta_multinomial[classInd], numCoeffPerClass);
-        model._output._standardized_model_beta_multinomial[classInd] = convertCenterBeta2Beta(model._output._zTranspose,
+        model._output._standardized_model_beta_multinomial_no_centering[classInd] = convertCenterBeta2Beta(model._output._zTranspose,
                 gamNumStart, standardized_model_beta_multinomial[classInd], numCoeffPerClass);
       }
     } else {  // other families
