@@ -38,6 +38,13 @@ public class GAMModel extends Model<GAMModel, GAMModel.GAMParameters, GAMModel.G
   public long _nullDOF;
   public int _rank;
 
+  @Override public String[] makeScoringNames() {
+    String[] names = super.makeScoringNames();
+    if (_output._glm_vcov != null)
+      names = ArrayUtils.append(names, "StdErr");
+    return names;
+  }
+  
   @Override public ModelMetrics.MetricBuilder makeMetricBuilder(String[] domain) {
     if (domain==null && (_parms._family==Family.binomial || _parms._family==Family.quasibinomial || 
             _parms._family==Family.negativebinomial))
@@ -311,7 +318,7 @@ public class GAMModel extends Model<GAMModel, GAMModel.GAMParameters, GAMModel.G
   protected Frame predictScoreImpl(Frame fr, Frame adaptFrm, String destination_key, Job j, boolean computeMetrics,
                                    CFuncRef customMetricFunc) {
     int nReponse = ArrayUtils.contains(adaptFrm.names(), _parms._response_column)?1:0;
-    String[] predictNames = super.makeScoringNames();
+    String[] predictNames = makeScoringNames();
     String[][] domains = new String[predictNames.length][];
     DataInfo datainfo = new DataInfo(adaptFrm.clone(), null, nReponse,
             _parms._use_all_factor_levels || _parms._lambda_search, DataInfo.TransformType.NONE,
@@ -323,6 +330,8 @@ public class GAMModel extends Model<GAMModel, GAMModel.GAMParameters, GAMModel.G
     GAMScore gs = new GAMScore(_output._dinfo, _output._model_beta_no_centering, _output._model_beta_multinomial_no_centering, _nclass, j,
             _parms._family, _output._responseDomains, this, computeMetrics);
     gs.doAll(predictNames.length, Vec.T_NUM, datainfo._adaptedFrame);
+    if (gs._computeMetrics)
+      gs._mb.makeModelMetrics(this, fr, adaptFrm, gs.outputFrame());
     domains[0] = gs._predDomains;
     return gs.outputFrame(Key.make(), predictNames, domains);  // place holder
   }
@@ -412,7 +421,8 @@ public class GAMModel extends Model<GAMModel, GAMModel.GAMParameters, GAMModel.G
       double mu = _m._parms.linkInv(r.innerProduct(_coeffs) + offset, _m._parms._link,
               _m._parms._tweedie_link_power);
       if (_m._parms._family == GLMModel.GLMParameters.Family.binomial ||
-              _m._parms._family == GLMModel.GLMParameters.Family.quasibinomial) { // threshold for prediction
+              _m._parms._family == GLMModel.GLMParameters.Family.quasibinomial ||
+      _m._parms._family == Family.negativebinomial) { // threshold for prediction
         preds[0] = mu >= _defaultThreshold?1:0;
         preds[1] = 1.0 - mu; // class 0
         preds[2] = mu; // class 1
@@ -465,6 +475,18 @@ public class GAMModel extends Model<GAMModel, GAMModel.GAMParameters, GAMModel.G
         preds[c + 1] = eta[c] * sumExp;
       preds[0] = ArrayUtils.maxIndex(eta);
       return preds;
+    }
+    
+    @Override 
+    public void reduce(GAMScore other) {
+      if (_mb !=null)
+        _mb.reduce(other._mb);
+    }
+    
+    @Override
+    protected void postGlobal() {
+      if (_mb != null)
+        _mb.postGlobal();
     }
   }
 

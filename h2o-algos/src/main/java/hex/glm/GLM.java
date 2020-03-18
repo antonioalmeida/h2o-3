@@ -2168,12 +2168,17 @@ public class GLM extends ModelBuilder<GLMModel,GLMParameters,GLMOutput> {
         _model._output.setSubmodel(_lambdaCVEstimate);
       else
         _model._output.pickBestModel();
-      if (!_parms._HGLM)  // no need to do for HGLM
-        scoreAndUpdateModel();
-      if(_vcov != null) {
+      if(_vcov != null) { // should move this up, otherwise, scoring will never use info in _vcov
         _model.setVcov(_vcov);
         _model.update(_job._key);
       }
+      if (!_parms._HGLM)  // no need to do for HGLM
+        scoreAndUpdateModel();
+      _model.update(_job._key);
+/*      if (_vcov != null) {
+        _model.setVcov(_vcov);
+        _model.update(_job._key);
+      }*/
       if(!(_parms)._lambda_search && _state._iter < _parms._max_iterations){
         _job.update(_workPerIteration*(_parms._max_iterations - _state._iter));
       }

@@ -3,6 +3,7 @@ package hex.gam;
 import hex.DataInfo;
 import hex.ModelBuilder;
 import hex.ModelCategory;
+import hex.ModelMetrics;
 import hex.gam.GAMModel.GAMParameters;
 import hex.gam.MatrixFrameUtils.GamUtils;
 import hex.glm.GLM;
@@ -16,6 +17,7 @@ import water.exceptions.H2OModelBuilderIllegalArgumentException;
 import water.fvec.Frame;
 import water.fvec.Vec;
 import water.util.ArrayUtils;
+import water.util.Log;
 import water.util.TwoDimTable;
 
 import java.util.ArrayList;
@@ -268,10 +270,20 @@ public class GAM extends ModelBuilder<GAMModel, GAMModel.GAMParameters, GAMModel
      * @param forTraining: true for training dataset and false for validation dataset
      */
     private void scoreGenModelMetrics(GAMModel model, Frame scoreFrame, boolean forTraining) {
-      Frame scoringTrain = new Frame(train());
+      Frame scoringTrain = new Frame(scoreFrame);
       model.adaptTestForTrain(scoringTrain, true, true);
       Frame scoredResult = model.score(scoringTrain);
       scoredResult.delete();
+      ModelMetrics mtrain = ModelMetrics.getFromDKV(model, scoringTrain);
+      if (mtrain!=null) {
+        if (forTraining)
+          model._output._training_metrics = mtrain;
+        else 
+          model._output._validation_metrics = mtrain;
+        Log.info("GAM[dest="+dest()+"]"+mtrain.toString());
+      } else {
+        Log.info("Model metrics is empty!");
+      }
     }
     
     private TwoDimTable createModelSummaryTable(GAMModel.GAMModelOutput modelOut, boolean forGAM) {
